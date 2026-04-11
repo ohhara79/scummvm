@@ -35,6 +35,20 @@
 
 namespace BladeRunner {
 
+// Tracks the most recently logged dialog text so repeated lines
+// (same text string, regardless of actor/speech id or outtake frame)
+// are not printed twice in a row to the debug console.
+static Common::String s_lastLoggedDialogText;
+
+// Collapse CR/LF to spaces so each debug() call prints on a single line.
+static void flattenNewlines(Common::String &s) {
+	for (uint i = 0; i < s.size(); ++i) {
+		if (s[i] == '\n' || s[i] == '\r') {
+			s.setChar(' ', i);
+		}
+	}
+}
+
 /*
  * Optional support for subtitles
  *
@@ -376,8 +390,25 @@ void Subtitles::loadInGameSubsText(int actorId, int speech_id)  {
 		const char *text = _vqaSubsTextResourceEntries[0]->getText((uint32)id);
 		if (_useUTF8) {
 			_subtitlesDataActive[kSubtitlesPrimary].currentText32 = Common::convertUtf8ToUtf32(text);
+			Common::String logText = Common::U32String(_subtitlesDataActive[kSubtitlesPrimary].currentText32).encode();
+			flattenNewlines(logText);
+			if (!logText.empty() && logText != s_lastLoggedDialogText) {
+				s_lastLoggedDialogText = logText;
+				debug("%d: \"%s\"",
+				      actorId, logText.c_str());
+			}
 		} else {
 			_subtitlesDataActive[kSubtitlesPrimary].currentText = text;
+			// TRE resource bytes are in the game's native 8-bit encoding
+			// (Windows-1252 for the English release). Re-encode as UTF-8
+			// so the terminal doesn't mangle curly quotes, em-dashes, etc.
+			Common::String logText = _subtitlesDataActive[kSubtitlesPrimary].currentText.decode(Common::kWindows1252).encode();
+			flattenNewlines(logText);
+			if (!logText.empty() && logText != s_lastLoggedDialogText) {
+				s_lastLoggedDialogText = logText;
+				debug("%d: \"%s\"",
+				      actorId, logText.c_str());
+			}
 		}
 	}
 }
@@ -413,8 +444,25 @@ void Subtitles::loadOuttakeSubsText(const Common::String &outtakesName, int fram
 	const char *text = _vqaSubsTextResourceEntries[fileIdx]->getOuttakeTextByFrame((uint32)frame);
 	if (_useUTF8) {
 		_subtitlesDataActive[kSubtitlesPrimary].currentText32 = Common::convertUtf8ToUtf32(text);
+		Common::String logText = Common::U32String(_subtitlesDataActive[kSubtitlesPrimary].currentText32).encode();
+		flattenNewlines(logText);
+		if (!logText.empty() && logText != s_lastLoggedDialogText) {
+			s_lastLoggedDialogText = logText;
+			debug("%s: \"%s\"",
+			      outtakesName.c_str(), logText.c_str());
+		}
 	} else {
 		_subtitlesDataActive[kSubtitlesPrimary].currentText = text;
+		// TRE resource bytes are in the game's native 8-bit encoding
+		// (Windows-1252 for the English release). Re-encode as UTF-8
+		// so the terminal doesn't mangle curly quotes, em-dashes, etc.
+		Common::String logText = _subtitlesDataActive[kSubtitlesPrimary].currentText.decode(Common::kWindows1252).encode();
+		flattenNewlines(logText);
+		if (!logText.empty() && logText != s_lastLoggedDialogText) {
+			s_lastLoggedDialogText = logText;
+			debug("%s: \"%s\"",
+			      outtakesName.c_str(), logText.c_str());
+		}
 	}
 }
 
