@@ -48,6 +48,20 @@ namespace Sword1 {
 #define SCRIPT_VERSION  13
 #define LAST_FRAME 999
 
+// Tracks the most recently logged dialog text so repeated lines
+// (same text string, regardless of object id) are not printed
+// twice in a row to the debug console.
+static Common::String s_lastLoggedDialogText;
+
+// Collapse CR/LF to spaces so each debug() call prints on a single line.
+static void flattenNewlines(Common::String &s) {
+	for (uint i = 0; i < s.size(); ++i) {
+		if (s[i] == '\n' || s[i] == '\r') {
+			s.setChar(' ', i);
+		}
+	}
+}
+
 uint32 Logic::_scriptVars[NUM_SCRIPT_VARS];
 
 Logic::Logic(SwordEngine *vm, ObjectMan *pObjMan, ResMan *resMan, Screen *pScreen, Mouse *pMouse, Sound *pSound, Menu *pMenu, OSystem *system, Audio::Mixer *mixer)
@@ -1237,6 +1251,16 @@ int Logic::fnISpeak(Object *cpt, int32 id, int32 cdt, int32 textNo, int32 spr, i
 
 		char *text = _objMan->lockText(textNo);
 		cpt->o_speech_time = strlen(text) + 5;
+		// Text resource bytes are in the game's native 8-bit encoding
+		// (Windows-1252 for the English release). Re-encode as UTF-8
+		// so the terminal doesn't mangle curly quotes, em-dashes, etc.
+		Common::String logText = Common::String(text).decode(Common::kWindows1252).encode();
+		flattenNewlines(logText);
+		if (!logText.empty() && logText != s_lastLoggedDialogText) {
+			s_lastLoggedDialogText = logText;
+			debug("%d: \"%s\"",
+			      id, logText.c_str());
+		}
 		uint32 textCptId = _textMan->lowTextManager((uint8 *)text, cpt->o_speech_width, (uint8)cpt->o_speech_pen);
 		_objMan->unlockText(textNo);
 

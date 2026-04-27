@@ -49,6 +49,19 @@
 
 namespace Sword1 {
 
+// Tracks the most recently logged movie subtitle text so repeated
+// lines are not printed twice in a row to the debug console.
+static Common::String s_lastLoggedMovieText;
+
+// Collapse CR/LF to spaces so each debug() call prints on a single line.
+static void flattenMovieNewlines(Common::String &s) {
+	for (uint i = 0; i < s.size(); ++i) {
+		if (s[i] == '\n' || s[i] == '\r') {
+			s.setChar(' ', i);
+		}
+	}
+}
+
 static const char *const sequenceList[20] = {
 	"ferrari",  // 0  CD2   ferrari running down fitz in sc19
 	"ladder",   // 1  CD2   george walking down ladder to dig sc24->sc$
@@ -166,6 +179,17 @@ Common::Error MoviePlayer::load(uint32 id) {
 				}
 
 				_movieTexts.push_back(MovieText(startFrame, endFrame, ptr, color));
+				// Subtitle .txt bytes are in the game's native 8-bit
+				// encoding (Windows-1252 for the English release).
+				// Re-encode as UTF-8 so the terminal doesn't mangle
+				// curly quotes, em-dashes, etc.
+				Common::String logText = Common::String(ptr).decode(Common::kWindows1252).encode();
+				flattenMovieNewlines(logText);
+				if (!logText.empty() && logText != s_lastLoggedMovieText) {
+					s_lastLoggedMovieText = logText;
+					debug("%s: \"%s\"",
+					      sequenceList[id], logText.c_str());
+				}
 				lastEnd = endFrame;
 			}
 		}
