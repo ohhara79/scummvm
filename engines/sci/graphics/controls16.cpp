@@ -21,6 +21,7 @@
 
 #include "common/util.h"
 #include "common/stack.h"
+#include "common/str-enc.h"
 #include "common/system.h"
 #include "common/unicode-bidi.h"
 #include "graphics/primitives.h"
@@ -41,6 +42,20 @@
 #include "sci/graphics/controls16.h"
 
 namespace Sci {
+
+// Tracks the most recently logged dialog text so repeated lines (the
+// same text control being redrawn, e.g. when a window is restored) are
+// not printed twice in a row to the debug console.
+static Common::String s_lastLoggedDialogText;
+
+// Collapse CR/LF to spaces so each debug() call prints on a single line.
+static void flattenNewlines(Common::String &s) {
+	for (uint i = 0; i < s.size(); ++i) {
+		if (s[i] == '\n' || s[i] == '\r') {
+			s.setChar(' ', i);
+		}
+	}
+}
 
 GfxControls16::GfxControls16(SegManager *segMan, GfxPorts *ports, GfxPaint16 *paint16, GfxText16 *text16, GfxScreen *screen)
 	: _segMan(segMan), _ports(ports), _paint16(paint16), _text16(text16), _screen(screen) {
@@ -393,6 +408,17 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 	g_sci->_tts->text(text);
 
 	if (!hilite) {
+		// Text resource bytes are in the game's native DOS code page.
+		// Re-encode as UTF-8 so the terminal doesn't mangle non-ASCII
+		// glyphs. CP850 matches CP437 for ASCII and most Latin letters.
+		Common::CodePage codePage = (g_sci->getLanguage() == Common::HE_ISR) ? Common::kDos862 : Common::kDos850;
+		Common::String logText = Common::String(text).decode(codePage).encode();
+		flattenNewlines(logText);
+		if (!logText.empty() && logText != s_lastLoggedDialogText) {
+			s_lastLoggedDialogText = logText;
+			debug("\"%s\"", logText.c_str());
+		}
+
 		rect.grow(1);
 		_paint16->eraseRect(rect);
 		rect.grow(-1);
